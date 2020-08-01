@@ -1,10 +1,15 @@
-from network import Network
 import json
 import sys
 import random
 import nltk
 import numpy as np 
+import pandas as pd
 import pickle
+
+from keras.models import Sequential
+from keras.layers import Dense, Activation, Dropout
+from keras.optimizers import SGD
+from keras.models import load_model
 
 from nltk.stem import WordNetLemmatizer
 
@@ -14,16 +19,10 @@ nltk.download('wordnet')
 from nltk.stem import WordNetLemmatizer
 lemmatizer = WordNetLemmatizer()
 
-from forwardLayer import ForwardLayer
-from activationFunctions import tanh, tanh_prime
-from losses import mse, mse_prime 
-from activationLayer import ActivationLayer
-
-class MealDishAi(Network):
+class MealDishAi():
 
     def __init__(self):
 
-        self._net = Network()
         self._intents = json.loads(open('src/recipes.json').read())
         self._words = pickle.load(open('src/words.pkl', 'rb'))
         self._classes = pickle.load(open('src/classes.pkl', 'rb'))
@@ -81,7 +80,7 @@ class MealDishAi(Network):
                 w = nltk.word_tokenize(recipe)
                 words.extend(w)
 
-                documents.append((recipe, w))
+                documents.append((w, recipe))
 
                 if recipe not in classes: classes.append(recipe)
 
@@ -107,7 +106,7 @@ class MealDishAi(Network):
             bag = []
 
             # list of tokenized words for the pattern
-            patternWords = document[1]
+            patternWords = document[0]
 
             # lemmatize each word - create base word, in attempt to represent related words
             patternWords = [lemmatizer.lemmatize(word.lower()) for word in patternWords]
@@ -116,74 +115,94 @@ class MealDishAi(Network):
             for w in words:
                 bag.append(1) if w in patternWords else bag.append(0)
 
-            return np.array(bag)
+            return bag
 
-
-    #train the model and save the result
-    def trainModel(self):
+    #building a corpus with word of bags
+    def getCorpus(self):
 
         words = self._words
         classes = self._classes
         documents = self._documents
         
         #initialize the training data
-        training = []
-        outputEmpty = [0] * len(self._classes)
+        corpus = []
+        emptyCorpus = [0] * len(self._classes)
     
         for doc in documents:
             bag = self.getWordbag(doc, words)
             
             # output is a '0' for each tag and '1' for current tag (for each pattern) .> 
-            outputRow = list(outputEmpty)
-        
-            outputRow[classes.index(doc[0])] = 1
-            outputRow = np.array(outputRow)
+            corpusRow = list(emptyCorpus)
+            corpusRow[classes.index(doc[1])] = 1
 
-            training.append([outputRow, bag])
+            corpus.append([bag, corpusRow])
+        return corpus
+
+    #train the model and save the result
+    def trainModel(self):
+
+        corpus = self.getCorpus()
 
         #shuffling the features and turn into a numpy array
-        random.shuffle(training)
-        training = np.array(training)
+        random.shuffle(corpus)
+        training = np.array(corpus)
+        len(training)
 
         #create training and tests-lists -> x: pattern (recipe words), y: intent (entire recipe string)
-        trainingX = list(training[:,1])
-        trainingY = list(training[:,0])
+        trainingX = list(training[:,0])
+        trainingY = list(training[:,1])
 
-        self._net.addLayer(ForwardLayer(1,len(trainingX)))
-        self._net.addLayer(ActivationLayer(tanh, tanh_prime))
-        self._net.addLayer(ForwardLayer(len(trainingX), len(trainingX)*2))
-        self._net.addLayer(ActivationLayer(tanh, tanh_prime))
-        self._net.addLayer(ForwardLayer(len(trainingX)*2, 1))
-        self._net.addLayer(ActivationLayer(tanh, tanh_prime))
+        #create the model - 3 layers, first layer 128 neurons, second layer 64 neurons and 3rd output
+        model = Sequential()
+        #first layer - 128 neurons
+        model.add(Dense(256, input_shape=(len(trainingX[0]),), activation='relu'))
+        model.add(Dropout(0.5))
+        #second layer - 64 neurons    
+        model.add(Dense(128, activation='relu'))
+        model.add(Dropout(0.5))
+        
+        #third layer - output
+        model.add(Dense(len(trainingY[0]), activation='softmax'))
 
-        #self._net.load('modelState.json')
-
-        # train
-        self._net.useLoss(mse, mse_prime)
-        self._net.fit(np.array([trainingX]), np.array([trainingY]), epochs=1000, learning_rate=0.1)
-
-
+        # Compile model. Stochastic gradient descent with Nesterov accelerated gradient gives good results for this model
+        model.compile(loss='categorical_crossentropy', optimizer= 'adam', metrics=['accuracy'])
+        model.summary()
+        #fitting and saving the model
+        hist = model.fit(np.array(trainingX), np.array(trainingY), epochs=200, batch_size=100, verbose=1) 
+        model.save('chatbot_model.h5', hist)
+    
     #make a prediction and return the computed match
     def prediction(self):
         pass
 
 
-    def getResponse(self):
-        pass
+    def getResponse(self, message):
+        sentence = self.cleanUpSentence(message)
+        return sentence 
 
 
-    def cleanUpSentence(self):
-        pass
+    def cleanUpSentence(self, message):
+        return message
     
 
+    #main-loop for the bot
     def run(self):
-        pass
+
+        print('Hello, my name is MJ.')
+        print("Have you any questions?")
+        
+        #treated the input stream and gives a computed answers
+        for inp in sys.stdin:
+            print('Please enter a recipe')
+            rsp = self.getResponse(inp)
+            print(rsp[0])
+
+            #keyword to kill the programm 
+            if(rsp[1] == "adoption"): sys.exit()
 
 ###################################################################################################################
 
 if __name__ == "__main__":
 
     bot = MealDishAi()
-    bot.loadJson('src/recipes.json')
-    #bot.creatingSetsForAI()
-    bot.trainModel()
+    bot.run()

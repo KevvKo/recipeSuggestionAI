@@ -27,7 +27,7 @@ class MealDishAi():
         self._words = pickle.load(open('src/words.pkl', 'rb'))
         self._classes = pickle.load(open('src/classes.pkl', 'rb'))
         self._documents = pickle.load(open('src/documents.pkl', 'rb'))
-
+        self.model = load_model('src/chatbot_model.h5')
 
     #creating a reusable json-file with recipes and further properties
     def createRecipesFile(self):
@@ -117,6 +117,25 @@ class MealDishAi():
 
             return bag
 
+    #creating a bag of words for the preciction 
+    def bow(self, sentence):
+        
+        words = self._words
+
+        # tokenize the pattern
+        sentenceWords = self.cleanUpSentence(sentence)
+        # bag of words - matrix of N words, vocabulary matrix
+        bag = [0]*len(words)
+
+        for s in sentenceWords:
+            for i,w in enumerate(words):
+                if w == s:
+                    # assign 1 if current word is in the vocabulary position
+                    bag[i] = 1
+
+        return(np.array(bag))
+
+
     #building a corpus with word of bags
     def getCorpus(self):
 
@@ -169,40 +188,65 @@ class MealDishAi():
         model.summary()
         #fitting and saving the model
         hist = model.fit(np.array(trainingX), np.array(trainingY), epochs=200, batch_size=100, verbose=1) 
-        model.save('AI-model.h5', hist)
+        model.save('chatbot_model.h5', hist)
     
 
     #make a prediction and return the computed match
-    def prediction(self):
-        pass
+    def prediction(self, sentence, model):
 
+        # filter out predictions below a threshold
+        bow = self.bow(sentence)
 
-    def getResponse(self, message):
-        sentence = self.cleanUpSentence(message)
-        return sentence 
+        res = model.predict(np.array([bow]))[0]
+        ERROR_THRESHOLD = 0.25
+        results = [[i,r] for i,r in enumerate(res) if r>ERROR_THRESHOLD]
+
+        # sort by strength of probability
+        results.sort(key=lambda x: x[1], reverse=True)
+        return_list = []
+        for r in results:
+            return_list.append({"intent": self._classes[r[0]], "probability": str(r[1])})
+  
+        return return_list
+
+    def getResponse(self, intents):
+        
+        recipe = intents[0]['intent']
+        list_of_intents = self._intents['intents']
+        
+        for i in list_of_intents:
+  
+            if(list(i.keys())[0] == recipe):
+
+                return i
+               
+        
 
 
     def cleanUpSentence(self, sentence):
         sentenceWwords = nltk.word_tokenize(sentence)
         sentenceWwords = [lemmatizer.lemmatize(word.lower()) for word in sentenceWwords]
         return sentenceWwords
-        
     
+
+    def botRepsonse(self, message):
+        intents = self.prediction(message, self.model)   
+        response = self.getResponse(intents)
+
+        return response
+
+
     #main-loop for the bot
     def run(self):
+        print('Please enter a recipe')
 
-        print('Hello, my name is MJ.')
-        print("Have you any questions?")
-        
         #treated the input stream and gives a computed answers
         for inp in sys.stdin:
-            print('Please enter a recipe')
-            rsp = self.getResponse(inp)
-            print(rsp[0])
 
-            #keyword to kill the programm 
-            if(rsp[1] == "adoption"): sys.exit()
+            response = self.botRepsonse(inp)
+            print(response)
 
+            print('Please enter a recipe:')
 ###################################################################################################################
 
 if __name__ == "__main__":

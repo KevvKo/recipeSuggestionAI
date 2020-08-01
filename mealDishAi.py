@@ -169,8 +169,9 @@ class MealDishAi():
         model.summary()
         #fitting and saving the model
         hist = model.fit(np.array(trainingX), np.array(trainingY), epochs=200, batch_size=100, verbose=1) 
-        model.save('chatbot_model.h5', hist)
+        model.save('AI-model.h5', hist)
     
+
     #make a prediction and return the computed match
     def prediction(self):
         pass
@@ -181,10 +182,12 @@ class MealDishAi():
         return sentence 
 
 
-    def cleanUpSentence(self, message):
-        return message
+    def cleanUpSentence(self, sentence):
+        sentenceWwords = nltk.word_tokenize(sentence)
+        sentenceWwords = [lemmatizer.lemmatize(word.lower()) for word in sentenceWwords]
+        return sentenceWwords
+        
     
-
     #main-loop for the bot
     def run(self):
 

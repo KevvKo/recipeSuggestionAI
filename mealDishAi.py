@@ -27,8 +27,8 @@ class MealDishAi():
         self._words = pickle.load(open('src/words.pkl', 'rb'))
         self._classes = pickle.load(open('src/classes.pkl', 'rb'))
         self._documents = pickle.load(open('src/documents.pkl', 'rb'))
-        self.model = load_model('src/chatbot_model.h5')
-
+        #self.model = load_model('src/recipeAI.h5')
+        
     #creating a reusable json-file with recipes and further properties
     def createRecipesFile(self):
         with open ('src/chefkoch.json', 'r') as file:
@@ -187,8 +187,8 @@ class MealDishAi():
         model.compile(loss='categorical_crossentropy', optimizer= 'adam', metrics=['accuracy'])
         model.summary()
         #fitting and saving the model
-        hist = model.fit(np.array(trainingX), np.array(trainingY), epochs=200, batch_size=100, verbose=1) 
-        model.save('chatbot_model.h5', hist)
+        hist = model.fit(np.array(trainingX), np.array(trainingY), epochs=300, batch_size=100, verbose=1) 
+        model.save('src/recipeModel.h5', hist)
     
 
     #make a prediction and return the computed match
@@ -198,7 +198,8 @@ class MealDishAi():
         bow = self.bow(sentence)
 
         res = model.predict(np.array([bow]))[0]
-        ERROR_THRESHOLD = 0.25
+
+        ERROR_THRESHOLD = 0.20
         results = [[i,r] for i,r in enumerate(res) if r>ERROR_THRESHOLD]
 
         # sort by strength of probability
@@ -220,8 +221,6 @@ class MealDishAi():
 
                 return i
                
-        
-
 
     def cleanUpSentence(self, sentence):
         sentenceWwords = nltk.word_tokenize(sentence)
@@ -244,12 +243,26 @@ class MealDishAi():
         for inp in sys.stdin:
 
             response = self.botRepsonse(inp)
-            print(response)
+            recipe = list(response.keys())[0]
 
+            ingredients = response[recipe]['ingredients']
+            preparation = response[recipe]['preparation']
+
+            print(recipe)
+
+            print('Necessary ingredients:' + "\n")
+            print(ingredients)
+            print("")
+
+            print('Preparation:' + "\n")
+            print(preparation)
+            print()
+            
             print('Please enter a recipe:')
 ###################################################################################################################
 
 if __name__ == "__main__":
 
     bot = MealDishAi()
-    bot.run()
+    bot.trainModel()
+    #bot.run()

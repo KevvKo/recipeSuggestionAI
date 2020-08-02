@@ -27,7 +27,7 @@ class MealDishAi():
         self._words = pickle.load(open('src/words.pkl', 'rb'))
         self._classes = pickle.load(open('src/classes.pkl', 'rb'))
         self._documents = pickle.load(open('src/documents.pkl', 'rb'))
-        #self.model = load_model('src/recipeAI.h5')
+        self.model = load_model('src/recipeModel.h5')
         
     #creating a reusable json-file with recipes and further properties
     def createRecipesFile(self):
@@ -171,7 +171,7 @@ class MealDishAi():
         trainingX = list(training[:,0])
         trainingY = list(training[:,1])
 
-        #create the model - 3 layers, first layer 128 neurons, second layer 64 neurons and 3rd output
+        #create the model - 3 layers, first layer 256 neurons, second layer 128 neurons and 3rd output
         model = Sequential()
         #first layer - 128 neurons
         model.add(Dense(256, input_shape=(len(trainingX[0]),), activation='relu'))
@@ -211,16 +211,17 @@ class MealDishAi():
         return return_list
 
     def getResponse(self, intents):
-        
-        recipe = intents[0]['intent']
-        list_of_intents = self._intents['intents']
-        
-        for i in list_of_intents:
-  
-            if(list(i.keys())[0] == recipe):
+        try:
+            recipe = intents[0]['intent']
+            list_of_intents = self._intents['intents']
+            
+            for i in list_of_intents:
+    
+                if(list(i.keys())[0] == recipe):
 
-                return i
-               
+                    return i
+        except:
+            return 'No recipe found'
 
     def cleanUpSentence(self, sentence):
         sentenceWwords = nltk.word_tokenize(sentence)
@@ -243,26 +244,32 @@ class MealDishAi():
         for inp in sys.stdin:
 
             response = self.botRepsonse(inp)
-            recipe = list(response.keys())[0]
-
-            ingredients = response[recipe]['ingredients']
-            preparation = response[recipe]['preparation']
-
-            print(recipe)
-
-            print('Necessary ingredients:' + "\n")
-            print(ingredients)
-            print("")
-
-            print('Preparation:' + "\n")
-            print(preparation)
             print()
+
+            if(isinstance(response, dict)):
+                recipe = list(response.keys())[0]
+
+                ingredients = response[recipe]['ingredients']
+                preparation = response[recipe]['preparation']
+
+                print(recipe)
+
+                print('Necessary ingredients:' + "\n")
+                print(ingredients)
+                print("")
+
+                print('Preparation:' + "\n")
+                print(preparation)
+                print()
             
+            else:
+                print(response + "\n")
+                
             print('Please enter a recipe:')
 ###################################################################################################################
 
 if __name__ == "__main__":
 
     bot = MealDishAi()
-    bot.trainModel()
-    #bot.run()
+    #bot.trainModel()
+    bot.run()
